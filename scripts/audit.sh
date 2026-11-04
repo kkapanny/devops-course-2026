@@ -63,6 +63,52 @@ awk -F: '$3>=1000 && $3<65534 {
     printf "              %s (uid=%s)\n",$1,$3
 }' /etc/passwd
 
+echo "[4] Веб-сервер"
+
+check "Служба nginx активна" \
+    "active" \
+    "$(systemctl is-active nginx)"
+
+NGINX_CONFIG_STATUS="error"
+
+if sudo nginx -t > /dev/null 2>&1; then
+    NGINX_CONFIG_STATUS="ok"
+fi
+
+check "Конфигурация nginx корректна" \
+    "ok" \
+    "$NGINX_CONFIG_STATUS"
+
+CERT_CHECK_SECONDS=2592000
+CERT_STATUS="expires-soon"
+
+if openssl x509 \
+    -checkend "$CERT_CHECK_SECONDS" \
+    -noout \
+    -in /etc/ssl/certs/devops.crt > /dev/null 2>&1; then
+    CERT_STATUS="valid"
+fi
+
+check "Сертификат действителен не менее 30 дней" \
+    "valid" \
+    "$CERT_STATUS"
+
+WORLD_WRITABLE="$(
+    find /var/www/devops-site -type f -perm -o+w -print -quit
+)"
+KEY_MODE="$(
+    sudo stat -c '%a' /etc/ssl/private/devops.key
+)"
+WEB_PERMISSIONS_STATUS="error"
+
+if [[ -z "$WORLD_WRITABLE" && "$KEY_MODE" == "600" ]]; then
+    WEB_PERMISSIONS_STATUS="ok"
+fi
+
+check "Файлы сайта защищены, права ключа равны 600" \
+    "ok" \
+    "$WEB_PERMISSIONS_STATUS"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
