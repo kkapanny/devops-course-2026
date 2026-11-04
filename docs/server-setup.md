@@ -135,10 +135,73 @@ sudo ufw status verbose
 - `01-clean-install` — после установки и первоначальной настройки Ubuntu
 - `02-keys-configured` — после создания пользователя devops и настройки SSH-ключей
 - `03-ssh-hardened` — после усиления защиты SSH
+- `04-nginx-https` — после настройки Nginx и HTTPS
 
 Снимки позволяют восстановить предыдущие состояния виртуальной машины.
 
-## 8. Дополнительные сведения
+## 8. Веб-сервер
+
+Установленный пакет:
+
+`nginx`
+
+Конфигурация ресурса:
+
+`/etc/nginx/sites-available/devops-site`
+
+Для активации ресурса создана символическая ссылка:
+
+`/etc/nginx/sites-enabled/devops-site`
+
+Стандартный ресурс Nginx отключён удалением ссылки `/etc/nginx/sites-enabled/default`.
+
+Каталог публикуемого ресурса:
+
+`/var/www/devops-site`
+
+Владелец и группа каталога:
+
+`devops:devops`
+
+Для каталогов используются права `755`, для файлов — `644`. Пользователь `devops` может изменять содержимое сайта, а рабочие процессы Nginx от имени `www-data` могут только читать его.
+
+Открытый сертификат:
+
+`/etc/ssl/certs/devops.crt`
+
+Права сертификата — `644`, владелец и группа — `root:root`.
+
+Закрытый ключ:
+
+`/etc/ssl/private/devops.key`
+
+Права ключа — `600`, владелец и группа — `root:root`. Закрытый ключ не копируется за пределы сервера и не добавляется в репозиторий.
+
+Команда формирования самоподписанного сертификата:
+
+```bash
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/devops.key \
+  -out /etc/ssl/certs/devops.crt \
+  -subj "/CN=devops.local" \
+  -addext "subjectAltName=DNS:devops.local"
+```
+
+Срок действия сертификата — 365 дней. Поле Subject Alternative Name содержит имя `DNS:devops.local`.
+
+Проверка конфигурации и её применение:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Проверка ресурса с хостовой системы:
+
+```bash
+curl --cacert ~/devops.crt -I https://devops.local
+```
+
+## 9. Дополнительные сведения
 
 Полное доменное имя сервера:
 
