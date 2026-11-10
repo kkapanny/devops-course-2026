@@ -201,7 +201,67 @@ sudo nginx -t && sudo systemctl reload nginx
 curl --cacert ~/devops.crt -I https://devops.local
 ```
 
-## 9. Дополнительные сведения
+## 9. Контейнеризация
+
+Docker Engine установлен из официального APT-репозитория Docker
+`https://download.docker.com/linux/ubuntu`. Установлены пакеты
+`docker-ce`, `docker-ce-cli`, `containerd.io`, `docker-buildx-plugin`
+и `docker-compose-plugin`.
+
+Версия Docker Engine: `29.9.3` (build `5457199`).
+Версия Docker Compose: `v5.7.0`.
+В группу `docker` включён пользователь `devops`.
+
+Проект расположен на сервере в каталоге `/home/devops/app`.
+Конфигурация сервисов находится в файле
+`/home/devops/app/docker-compose.yml`.
+
+Переменные окружения и пароль PostgreSQL хранятся в файле
+`/home/devops/app/.env`. Права файла — `600`, владелец — `devops`.
+Файл `.env` не копируется на хостовую систему и не добавляется в Git.
+
+Конфигурация состоит из двух сервисов:
+
+- `app` — Flask-приложение, запускаемое через Gunicorn от имени
+  непривилегированного пользователя `app`;
+- `db` — PostgreSQL 16 на основе образа `postgres:16-alpine`.
+
+Сервисы подключены к сети `app_backend`. Приложение обращается к
+PostgreSQL по сетевому имени `db`. Данные СУБД сохраняются в
+именованном томе `app_db_data`.
+
+Порт приложения опубликован только на loopback-адресе
+`127.0.0.1:5000`. Порт PostgreSQL `5432` на сервере не публикуется и
+доступен только внутри Docker-сети.
+
+Nginx принимает HTTPS-запросы по пути `/app/` и передаёт их приложению
+по адресу `http://127.0.0.1:5000/`:
+
+```nginx
+location /app/ {
+    proxy_pass http://127.0.0.1:5000/;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Управление проектом выполняется из каталога `/home/devops/app`:
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs
+docker compose down
+```
+
+Команда `docker compose down` удаляет контейнеры и сеть, но сохраняет
+именованный том с базой данных. Команда `docker compose down -v`
+удаляет том вместе с данными и на рабочем сервере без необходимости
+не применяется.
+
+## 10. Дополнительные сведения
 
 Полное доменное имя сервера:
 
