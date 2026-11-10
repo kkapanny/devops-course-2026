@@ -109,6 +109,34 @@ check "Файлы сайта защищены, права ключа равны 
     "ok" \
     "$WEB_PERMISSIONS_STATUS"
 
+echo "[5] Контейнеризация"
+
+check "Служба docker активна" \
+    "active" \
+    "$(systemctl is-active docker)"
+
+check "Контейнер СУБД находится в состоянии healthy" \
+    "healthy" \
+    "$(docker inspect -f '{{.State.Health.Status}}' app-db-1 2>/dev/null)"
+
+UNSAFE_PORTS="$(
+    ss -H -tln |
+        awk '$4 ~ /:(5000|5432)$/ && $4 !~ /^127\.0\.0\.1:/ {print $4}'
+)"
+PORTS_STATUS="error"
+
+if [[ -z "$UNSAFE_PORTS" ]]; then
+    PORTS_STATUS="ok"
+fi
+
+check "Порты 5000 и 5432 не опубликованы на внешних адресах" \
+    "ok" \
+    "$PORTS_STATUS"
+
+check "Права файла /home/devops/app/.env равны 600" \
+    "600" \
+    "$(stat -c '%a' /home/devops/app/.env 2>/dev/null)"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
